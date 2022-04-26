@@ -29,6 +29,9 @@ c9 = .5
 c2 = 1
 
 # REM START OF GAME
+def main ():
+
+
 310 GOSUB 12000: FOR I = 1 TO N:B(I) = 0:A(I) = A2: NEXT
 710 IF D > 2 THEN 2000
 800 REM INPUT VALUES
@@ -230,6 +233,20 @@ c2 = 1
 11720 POKE 768,I: POKE 769,J: CALL 770
 11730 GOTO 11710
 
+def titlePage():
+    welcomeLine = "Hi! Welcome to Lemonsville, California!"
+    intro = "In this small town, you are in charge of running your own lemonade stand. You can compete with as many other people as you wish, but how much profit you make is up to you (the other stands' sales will not affect your business in any way. If you make the most money, you're the winner!!"
+    print(welcomeLine + "\n\n")
+    print(intro + "\n\n")
+
+def titlePrompts():
+    newGame = "Are you starting a new game? (Y or N)\nType your answer and hit Enter/Return ==> "
+    playerPrompt = "How many people will be playing ==> "
+    while True:
+        try:
+            newGamePrompt = input(newGame)
+
+
 12000 REM TITLE PAGE
 12100 TEXT : HOME : PRINT CHR$ (7);
 12110 PRINT "HI! WELCOME TO LEMONSVILLE, CALIFORNIA!": PRINT
@@ -240,7 +257,7 @@ c2 = 1
 12160 PRINT "TO YOU (THE OTHER STANDS' SALES WILL NOT"
 12170 PRINT "AFFECT YOUR BUSINESS IN ANY WAY). IF YOU"
 12180 PRINT "MAKE THE MOST MONEY, YOU'RE THE WINNER!!": PRINT
-12190 PRINT "ARE YOU STARTING A NEW GAME? (YES OR NO)"
+12190 PRINT ""
 12200 VTAB 21: CALL - 958: INPUT "TYPE YOUR ANSWER AND HIT RETURN ==> ";A$
 12210 A$ = LEFT$ (A$,1): IF A$ < > "Y" AND A$ < > "N" THEN PRINT CHR$ (7);: GOTO 12200
 12220 VTAB 23: CALL - 958: INPUT "HOW MANY PEOPLE WILL BE PLAYING ==> ";N$
