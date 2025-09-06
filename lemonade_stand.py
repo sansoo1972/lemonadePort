@@ -1,394 +1,591 @@
-#Class App
-#Inherits Application
+#!/usr/bin/env python3
+"""
+Lemonade Stand Game - Python Implementation
+Based on the original BASIC version by Bob Jamison
+"""
 
-#Const kFileQuitShortcut = ""
-#Const kFileQuit = "Quit"
-#Const kEditClea
-
-#Class MainWindow
-#Inherits Window
-
-# Protected Const kSignCost = 0.15
-# Protected Const kNewDayPage = 0
-# Protected Const kResultsPage = 1
-# Protected Const kP9 = 10
-# Protected Const kS2 = 30
-# Protected Const kC9 = 0.5
-# Protected Const kC2 = 1
-# Protected Const kWeatherSunny = 2
-# Protected Const kWeatherHot = 7
-# Protected Const kWeatherCloudy = 10
-# Protected Const kWeatherStorm = 5
-
-kStartingAssets = 2.00
-kSignCost = 0.15
-kNewDayPage = 0
-kResultsPage = 1
-kP9 = 10
-kS2 = 30
-kC9 = 0.5
-kC2 = 1
-kWeatherSunny = 2
-kWeatherHot = 7
-kWeatherCloudy = 10
-kWeatherStorm = 5
-
-MainWindow.Open:
-    Sub Open() Handles Event
-        initGame(1)
-        startNewDay()
-    End Sub
-
-#MainWindow.StartNewDay:
-def startNewDay():
-    day = day + 1
-    makeWeather()
-
-    WeatherTitleTxt.text = "Weather Report for Day " + str(day)
-    CostLabelTxt.text = "On day " + str(day) + ", the cost of lemonade is:"
-
-    Dim specialEvent As String = DoRandomEvents
-    if specialEvent <> "" then
-        WeatherTxt.text = WeatherTxt.text + EndOfLine + specialEvent
-    end if
-
-    showDecisionPage()
+import random
+import time
+import os
+from dataclasses import dataclass
+from typing import List, Optional
+from enum import Enum
 
 
-#MainWindow.InitGame:
-def initGame(qty):
-    qtyPlayers = qty
-        Redim Assets( QtyPlayers - 1 )
-        Redim GlassesMade( QtyPlayers - 1 )
-        Redim GlassesSold( QtyPlayers - 1 )
-        Redim PricePerGlass( QtyPlayers - 1 )
-        Redim SignsMade( QtyPlayers - 1 )
+class Weather(Enum):
+    SUNNY = 2
+    HOT = 7  
+    CLOUDY = 10
+    THUNDERSTORM = 5
 
-        Dim i As Integer
-        for i = 0 to QtyPlayers-1
-            Assets(i) = kStartingAssets
-        next
 
-        WeatherFactor = 1.0
-    End Sub
+class RandomEvent(Enum):
+    NONE = 0
+    LIGHT_RAIN = 1
+    STREET_WORK = 2
+    HEAT_WAVE = 3
 
-MainWindow.CalculateResults:
-    Protected Sub CalculateResults()
-    # calculate how many glasses are sold
 
-    Dim specialResult As String
-    Dim N1 As Double
+@dataclass
+class GameConstants:
+    """Game constants matching the original BASIC version"""
+    OPTIMAL_PRICE = 10  # P9 = 10 cents
+    SIGN_COST = 0.15    # S3 = .15
+    BASE_CUSTOMERS = 30  # S2 = 30
+    STARTING_ASSETS = 2.00  # A2 = 2.00
+    SIGN_EFFECTIVENESS = 0.5  # C9 = .5
+    ADVERTISING_MULTIPLIER = 1  # C2 = 1
 
-    if pricePerGlass( CurPlayer ) >= kP9 then
-        N1 = ((kP9 ^ 2) * kS2 / pricePerGlass( CurPlayer ) ^ 2 )
-    else
-        N1 = (kP9 - pricePerGlass( CurPlayer )) / kP9 * 0.8 * kS2 + kS2
-    end if
 
-    Dim W As Double
-    W = -signsMade( CurPlayer ) * kC9
+@dataclass
+class Player:
+    """Represents a player in the game"""
+    id: int
+    assets: float
+    bankrupt: bool = False
+    glasses_made: int = 0
+    signs_made: int = 0
+    price_per_glass: int = 0
+    glasses_sold: int = 0
+    income: float = 0.0
+    expenses: float = 0.0
+    profit: float = 0.0
 
-    Dim adBenefit As Double // % increase in sales due to ads
-    adBenefit = 1 - ( Exp(W) * kC2 )
 
-    Dim N2 As Double
-    N2 = Floor( WeatherFactor * N1 * (1 + adBenefit) )
+class GameState:
+    """Manages the overall game state"""
+    def __init__(self):
+        self.day = 0
+        self.players: List[Player] = []
+        self.weather = Weather.SUNNY
+        self.weather_multiplier = 1.0
+        self.random_event = RandomEvent.NONE
+        self.lemonade_cost = 0.02
+        self.constants = GameConstants()
+        
+    def get_lemonade_cost(self) -> float:
+        """Calculate lemonade cost based on day"""
+        if self.day <= 2:
+            return 0.02
+        elif self.day <= 6:
+            return 0.04
+        else:
+            return 0.05
 
-    if StormBrewing then
-        Weather = kWeatherStorm
-        UpdateWeatherReport
-        PlayThunderClap
-        Player.PlaySong 100, 180, "0,8 55,2 67,3 64,1 62,2 60,1 57,6 55,2 60,4 60,1 62,2 64,1 67,4"
-        N2 = 0
 
-        if glassesMade( CurPlayer ) > 0 then
-            specialResult = "All lemonade was ruined."
-        end if
+class WeatherSystem:
+    """Handles weather generation and effects"""
+    
+    @staticmethod
+    def generate_weather() -> Weather:
+        """Generate random weather based on original probabilities"""
+        rand = random.random()
+        if rand < 0.6:
+            return Weather.SUNNY
+        elif rand < 0.8:
+            return Weather.CLOUDY  
+        else:
+            return Weather.HOT
+    
+    @staticmethod
+    def get_weather_multiplier(weather: Weather, day: int) -> float:
+        """Get weather effect on sales"""
+        if day < 3:
+            return 1.0  # No weather effects first 2 days
+            
+        if weather == Weather.HOT:
+            return 2.0
+        elif weather == Weather.THUNDERSTORM:
+            return 0.0  # Everything ruined
+        else:
+            return 1.0
+    
+    @staticmethod
+    def display_weather(weather: Weather):
+        """Display weather report"""
+        print("\n" + "="*40)
+        print("   LEMONSVILLE WEATHER REPORT")
+        print("="*40)
+        
+        weather_messages = {
+            Weather.SUNNY: "☀️  SUNNY",
+            Weather.HOT: "🌡️  HOT AND DRY", 
+            Weather.CLOUDY: "☁️  CLOUDY",
+            Weather.THUNDERSTORM: "⛈️  THUNDERSTORMS!"
+        }
+        
+        message = weather_messages.get(weather, "UNKNOWN")
+        print(f"        {message}")
+        print("="*40)
 
-    elseif StreetCrewThirsty then
-        N2 = glassesMade( CurPlayer )
-        specialResult = "The street crews bought all your lemonade at lunchtime!"
-    end if
 
-    GlassesSold(CurPlayer) = Min( N2, glassesMade( CurPlayer ) )
+class RandomEventSystem:
+    """Handles random events that can occur"""
+    
+    @staticmethod
+    def check_random_event(day: int, weather: Weather) -> tuple[RandomEvent, float]:
+        """Check for random events and return event and multiplier"""
+        if day <= 2:
+            return RandomEvent.NONE, 1.0
+            
+        if weather == Weather.CLOUDY and random.random() < 0.25:
+            return RandomEvent.LIGHT_RAIN, 0.7  # Reduced sales
+            
+        if weather == Weather.HOT:
+            print("A HEAT WAVE IS PREDICTED FOR TODAY!")
+            return RandomEvent.HEAT_WAVE, 2.0
+            
+        if random.random() < 0.25:
+            event_type = random.choice([RandomEvent.LIGHT_RAIN, RandomEvent.STREET_WORK])
+            
+            if event_type == RandomEvent.LIGHT_RAIN:
+                chance = 30 + random.randint(0, 4) * 10
+                print(f"THERE IS A {chance}% CHANCE OF LIGHT RAIN,")
+                print("AND THE WEATHER IS COOLER TODAY.")
+                return event_type, 1 - chance/100
+                
+            elif event_type == RandomEvent.STREET_WORK:
+                print("THE STREET DEPARTMENT IS WORKING TODAY.")
+                print("THERE WILL BE NO TRAFFIC ON YOUR STREET.")
+                if random.random() < 0.5:
+                    print("THE STREET CREWS BOUGHT ALL YOUR LEMONADE AT LUNCHTIME!!")
+                    return event_type, -1  # Special handling - sell all
+                else:
+                    return event_type, 0.1  # Very few customers
+                    
+        return RandomEvent.NONE, 1.0
 
-    # calculate income and expenses
-    Dim expenses As Double = _
-    glassesMade( CurPlayer ) * CostPerGlass/100 _
-    + signsMade( CurPlayer ) * kSignCost
 
-    Dim income As Double = GlassesSold(CurPlayer) * pricePerGlass( CurPlayer ) / 100
+class SalesCalculator:
+    """Calculates sales based on price, advertising, and conditions"""
+    
+    @staticmethod
+    def calculate_demand(price: int, constants: GameConstants) -> float:
+        """Calculate base demand based on price vs optimal price"""
+        optimal = constants.OPTIMAL_PRICE
+        base = constants.BASE_CUSTOMERS
+        
+        if price >= optimal:
+            # Demand drops quadratically for high prices
+            demand = (optimal ** 2) * base / (price ** 2)
+        else:
+            # Linear increase for prices below optimal
+            demand = (optimal - price) / optimal * 0.8 * base + base
+            
+        return demand
+    
+    @staticmethod
+    def apply_advertising_effect(base_demand: float, signs: int, constants: GameConstants) -> float:
+        """Apply advertising effect using exponential formula"""
+        w = -signs * constants.SIGN_EFFECTIVENESS
+        v = 1 - (2.71828 ** w) * constants.ADVERTISING_MULTIPLIER  # Using e ≈ 2.71828
+        return base_demand + (base_demand * v)
+    
+    @staticmethod
+    def calculate_sales(player: Player, weather_multiplier: float, 
+                       random_event: RandomEvent, constants: GameConstants) -> int:
+        """Calculate final number of glasses sold"""
+        if weather_multiplier == 0.0:  # Thunderstorm
+            return 0
+            
+        # Calculate base demand
+        base_demand = SalesCalculator.calculate_demand(player.price_per_glass, constants)
+        
+        # Apply advertising
+        demand_with_ads = SalesCalculator.apply_advertising_effect(
+            base_demand, player.signs_made, constants)
+        
+        # Apply weather and random event multipliers
+        final_demand = demand_with_ads * weather_multiplier
+        
+        # Handle special case: street crews buy all
+        if random_event == RandomEvent.STREET_WORK and weather_multiplier == -1:
+            return player.glasses_made
+        
+        # Limit to supply
+        glasses_sold = min(int(final_demand), player.glasses_made)
+        return max(0, glasses_sold)
 
-    # adjust assets
-    Assets(CurPlayer) = Assets(CurPlayer) + income - expenses
 
-    # stu! all this into the results display
-    SpecialResultTxt.text = specialResult
-    GlassesSoldTxt.text = str( GlassesSold(CurPlayer) )
+class InputValidator:
+    """Validates user input"""
+    
+    @staticmethod
+    def get_int_input(prompt: str, min_val: int, max_val: int) -> int:
+        """Get validated integer input within range"""
+        while True:
+            try:
+                value = input(prompt)
+                if value.lower() in ['quit', 'exit']:
+                    raise KeyboardInterrupt
+                    
+                num = int(float(value))  # Handle decimal input
+                if min_val <= num <= max_val:
+                    return num
+                else:
+                    print(f"COME ON, LET'S BE REASONABLE NOW!!! (Enter {min_val}-{max_val})")
+            except (ValueError, KeyboardInterrupt):
+                if value.lower() in ['quit', 'exit']:
+                    raise KeyboardInterrupt
+                print("PLEASE ENTER A VALID NUMBER!")
+    
+    @staticmethod
+    def get_yes_no(prompt: str) -> bool:
+        """Get yes/no input"""
+        while True:
+            response = input(prompt).upper().strip()
+            if response.startswith('Y'):
+                return True
+            elif response.startswith('N'):
+                return False
+            else:
+                print("PLEASE ANSWER YES OR NO!")
 
-    if GlassesSold(CurPlayer) = 1 then
-        GlassesSoldLbl.text = "Glass Sold"
-    else
-        GlassesSoldLbl.text = "Glasses Sold"
-    end if
 
-    PricePerGlassTxt.text = DFormat( pricePerGlass( CurPlayer ) / 100 )
-    SalesIncTxt.text = DFormat( GlassesSold(CurPlayer) * pricePerGlass( CurPlayer ) / 100 )
-    GlassesMadeTxt.text = str(glassesMade( CurPlayer ))
+class Display:
+    """Handles game display and formatting"""
+    
+    @staticmethod
+    def clear_screen():
+        """Clear the screen"""
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    @staticmethod
+    def format_currency(amount: float) -> str:
+        """Format amount as currency"""
+        return f"${amount:.2f}"
+    
+    @staticmethod
+    def show_title():
+        """Show game title"""
+        Display.clear_screen()
+        print("*" * 50)
+        print("*" + " " * 48 + "*")
+        print("*" + "    🍋 LEMONADE STAND 🍋".center(48) + "*")
+        print("*" + " " * 48 + "*") 
+        print("*" * 50)
+        print()
+    
+    @staticmethod
+    def show_instructions():
+        """Show game instructions"""
+        Display.clear_screen()
+        print("TO MANAGE YOUR LEMONADE STAND, YOU WILL")
+        print("NEED TO MAKE THESE DECISIONS EVERY DAY:")
+        print()
+        print("1. HOW MANY GLASSES OF LEMONADE TO MAKE")
+        print("   (ONLY ONE BATCH IS MADE EACH MORNING)")
+        print("2. HOW MANY ADVERTISING SIGNS TO MAKE")
+        print("   (THE SIGNS COST FIFTEEN CENTS EACH)")
+        print("3. WHAT PRICE TO CHARGE FOR EACH GLASS")
+        print()
+        print("YOU WILL BEGIN WITH $2.00 CASH (ASSETS).")
+        print("BECAUSE YOUR MOTHER GAVE YOU SOME SUGAR,")
+        print("YOUR COST TO MAKE LEMONADE IS TWO CENTS")
+        print("A GLASS (THIS MAY CHANGE IN THE FUTURE).")
+        print()
+        input("PRESS ENTER TO CONTINUE...")
+        
+        Display.clear_screen()
+        print("YOUR EXPENSES ARE THE SUM OF THE COST OF")
+        print("THE LEMONADE AND THE COST OF THE SIGNS.")
+        print()
+        print("YOUR PROFITS ARE THE DIFFERENCE BETWEEN")
+        print("THE INCOME FROM SALES AND YOUR EXPENSES.")
+        print()
+        print("THE NUMBER OF GLASSES YOU SELL EACH DAY")
+        print("DEPENDS ON THE PRICE YOU CHARGE, AND ON")
+        print("THE NUMBER OF ADVERTISING SIGNS YOU USE.")
+        print()
+        print("KEEP TRACK OF YOUR ASSETS, BECAUSE YOU")
+        print("CAN'T SPEND MORE MONEY THAN YOU HAVE!")
+        print()
+        input("PRESS ENTER TO CONTINUE...")
+    
+    @staticmethod
+    def show_daily_report(player: Player, day: int):
+        """Show daily financial report for a player"""
+        print(f"\n$$ LEMONSVILLE DAILY FINANCIAL REPORT $$")
+        print(f"DAY {day}                        STAND {player.id}")
+        print()
+        print(f"  {player.glasses_sold} GLASSES SOLD")
+        print(f"  {Display.format_currency(player.price_per_glass/100)} PER GLASS" + 
+              f"                INCOME {Display.format_currency(player.income)}")
+        print()
+        print(f"  {player.glasses_made} GLASSES MADE")
+        print(f"  {player.signs_made} SIGNS MADE" + 
+              f"                EXPENSES {Display.format_currency(player.expenses)}")
+        print()
+        print(f"                PROFIT  {Display.format_currency(player.profit)}")
+        print(f"                ASSETS  {Display.format_currency(player.assets)}")
+        print()
+        input("PRESS ENTER TO CONTINUE...")
 
-    if glassesMade( CurPlayer ) = 1 then
-        GlassesMadeLbl.text = "Glass Made"
-    else
-        GlassesMadeLbl.text = "Glasses Made"
-    end if
 
-    CostPerGlassTxt.text = DFormat( CostPerGlass / 100 )
-    LemonadeExpTxt.text = DFormat( glassesMade( CurPlayer ) * CostPerGlass / 100 )
-    SignsMadeTxt.text = str(signsMade( CurPlayer ))
+class LemonadeStandGame:
+    """Main game controller"""
+    
+    def __init__(self):
+        self.game_state = GameState()
+        self.weather_system = WeatherSystem()
+        self.random_event_system = RandomEventSystem()
+        self.sales_calculator = SalesCalculator()
+        self.display = Display()
+    
+    def setup_game(self) -> bool:
+        """Setup new game or continue existing"""
+        self.display.show_title()
+        
+        print("HI! WELCOME TO LEMONSVILLE, CALIFORNIA!")
+        print()
+        print("IN THIS SMALL TOWN, YOU ARE IN CHARGE OF")
+        print("RUNNING YOUR OWN LEMONADE STAND. YOU CAN")
+        print("COMPETE WITH AS MANY OTHER PEOPLE AS YOU")
+        print("WISH, BUT HOW MUCH PROFIT YOU MAKE IS UP")
+        print("TO YOU (THE OTHER STANDS' SALES WILL NOT")
+        print("AFFECT YOUR BUSINESS IN ANY WAY). IF YOU")
+        print("MAKE THE MOST MONEY, YOU'RE THE WINNER!!")
+        print()
+        
+        new_game = InputValidator.get_yes_no("ARE YOU STARTING A NEW GAME? (YES OR NO) ")
+        
+        if new_game:
+            self.display.show_instructions()
+            num_players = InputValidator.get_int_input(
+                "HOW MANY PEOPLE WILL BE PLAYING ==> ", 1, 30)
+            
+            # Initialize players
+            for i in range(num_players):
+                player = Player(
+                    id=i+1,
+                    assets=self.game_state.constants.STARTING_ASSETS
+                )
+                self.game_state.players.append(player)
+            
+            self.game_state.day = 0
+        else:
+            return self.continue_game()
+            
+        return True
+    
+    def continue_game(self) -> bool:
+        """Continue existing game"""
+        try:
+            day = InputValidator.get_int_input(
+                "WHAT DAY NUMBER WAS IT? ", 1, 99)
+            self.game_state.day = day
+            
+            num_players = InputValidator.get_int_input(
+                "HOW MANY PLAYERS? ", 1, 30)
+            
+            for i in range(num_players):
+                assets = float(input(f"PLAYER {i+1}, HOW MUCH MONEY (ASSETS) DID YOU HAVE? "))
+                if assets < 2:
+                    print("O.K. - WE'LL START YOU OUT WITH $2.00")
+                    assets = 2.0
+                elif assets > 40:
+                    print("JUST TO BE FAIR, LET'S MAKE THAT $10.00")
+                    assets = 10.0
+                    
+                player = Player(id=i+1, assets=assets)
+                self.game_state.players.append(player)
+                
+        except (ValueError, KeyboardInterrupt):
+            return False
+            
+        return True
+    
+    def play_day(self):
+        """Play one day of the game"""
+        self.game_state.day += 1
+        self.game_state.lemonade_cost = self.game_state.get_lemonade_cost()
+        
+        self.display.clear_screen()
+        print(f"ON DAY {self.game_state.day}, THE COST OF LEMONADE IS " +
+              f"{Display.format_currency(self.game_state.lemonade_cost)}")
+        print()
+        
+        # Current events
+        if self.game_state.day == 3:
+            print("(YOUR MOTHER QUIT GIVING YOU FREE SUGAR)")
+        if self.game_state.day == 7:
+            print("(THE PRICE OF LEMONADE MIX JUST WENT UP)")
+        
+        # Generate weather
+        if self.game_state.day < 3:
+            self.game_state.weather = Weather.SUNNY
+        else:
+            self.game_state.weather = self.weather_system.generate_weather()
+        
+        self.weather_system.display_weather(self.game_state.weather)
+        
+        # Check for random events
+        if self.game_state.day > 2:
+            event, multiplier = self.random_event_system.check_random_event(
+                self.game_state.day, self.game_state.weather)
+            self.game_state.random_event = event
+            
+            if event == RandomEvent.STREET_WORK and multiplier == -1:
+                self.game_state.weather_multiplier = -1  # Special flag
+            else:
+                self.game_state.weather_multiplier = multiplier
+        else:
+            self.game_state.weather_multiplier = self.weather_system.get_weather_multiplier(
+                self.game_state.weather, self.game_state.day)
+        
+        # Get player decisions
+        self.get_player_decisions()
+        
+        # Check for thunderstorm
+        if (self.game_state.weather == Weather.CLOUDY and 
+            random.random() < 0.25):
+            self.game_state.weather = Weather.THUNDERSTORM
+            self.game_state.weather_multiplier = 0.0
+            print("\nWEATHER REPORT: A SEVERE THUNDERSTORM")
+            print("HIT LEMONSVILLE EARLIER TODAY, JUST AS")
+            print("THE LEMONADE STANDS WERE BEING SET UP.")
+            print("UNFORTUNATELY, EVERYTHING WAS RUINED!!")
+            input("PRESS ENTER TO CONTINUE...")
+        
+        # Calculate results
+        self.calculate_daily_results()
+        
+        # Check for bankruptcy
+        self.check_bankruptcy()
+    
+    def get_player_decisions(self):
+        """Get decisions from each player"""
+        for player in self.game_state.players:
+            if player.bankrupt:
+                print(f"\nLEMONADE STAND {player.id}")
+                print(f"ASSETS {Display.format_currency(player.assets)}")
+                print("YOU ARE BANKRUPT, NO DECISIONS FOR YOU TO MAKE.")
+                continue
+            
+            while True:  # Allow player to change decisions
+                self.display.clear_screen()
+                print(f"LEMONADE STAND {player.id}")
+                print(f"ASSETS {Display.format_currency(player.assets)}")
+                print()
+                
+                # Get glasses to make
+                max_glasses = int(player.assets / self.game_state.lemonade_cost)
+                player.glasses_made = InputValidator.get_int_input(
+                    "HOW MANY GLASSES OF LEMONADE DO YOU WISH TO MAKE? ", 
+                    0, min(1000, max_glasses))
+                
+                if player.glasses_made * self.game_state.lemonade_cost > player.assets:
+                    print(f"THINK AGAIN!!! YOU HAVE ONLY {Display.format_currency(player.assets)}")
+                    print(f"IN CASH AND TO MAKE {player.glasses_made} GLASSES OF")
+                    print(f"LEMONADE YOU NEED {Display.format_currency(player.glasses_made * self.game_state.lemonade_cost)} IN CASH.")
+                    continue
+                
+                # Get advertising signs
+                remaining_cash = player.assets - (player.glasses_made * self.game_state.lemonade_cost)
+                max_signs = int(remaining_cash / self.game_state.constants.SIGN_COST)
+                
+                print(f"\nHOW MANY ADVERTISING SIGNS ({self.game_state.constants.SIGN_COST * 100:.0f} CENTS")
+                player.signs_made = InputValidator.get_int_input(
+                    "EACH) DO YOU WANT TO MAKE? ", 0, min(50, max_signs))
+                
+                if player.signs_made * self.game_state.constants.SIGN_COST > remaining_cash:
+                    print(f"THINK AGAIN, YOU HAVE ONLY {Display.format_currency(remaining_cash)}")
+                    print("IN CASH LEFT AFTER MAKING YOUR LEMONADE.")
+                    continue
+                
+                # Get price
+                player.price_per_glass = InputValidator.get_int_input(
+                    "\nWHAT PRICE (IN CENTS) DO YOU WISH TO CHARGE FOR LEMONADE? ", 
+                    0, 100)
+                
+                # Ask if they want to change anything
+                change = InputValidator.get_yes_no("\nWOULD YOU LIKE TO CHANGE ANYTHING? ")
+                if not change:
+                    break
+    
+    def calculate_daily_results(self):
+        """Calculate sales and profits for each player"""
+        for player in self.game_state.players:
+            if player.bankrupt:
+                continue
+                
+            # Calculate sales
+            player.glasses_sold = self.sales_calculator.calculate_sales(
+                player, self.game_state.weather_multiplier, 
+                self.game_state.random_event, self.game_state.constants)
+            
+            # Calculate finances
+            player.income = player.glasses_sold * player.price_per_glass * 0.01
+            player.expenses = (player.signs_made * self.game_state.constants.SIGN_COST + 
+                             player.glasses_made * self.game_state.lemonade_cost)
+            player.profit = player.income - player.expenses
+            player.assets += player.profit
+            
+            # Show daily report
+            if not player.bankrupt:
+                self.display.show_daily_report(player, self.game_state.day)
+    
+    def check_bankruptcy(self):
+        """Check and handle player bankruptcy"""
+        for player in self.game_state.players:
+            if (not player.bankrupt and 
+                player.assets <= self.game_state.lemonade_cost):
+                print(f"\nSTAND {player.id}")
+                print("...YOU DON'T HAVE ENOUGH MONEY LEFT")
+                print("TO STAY IN BUSINESS  YOU'RE BANKRUPT!")
+                player.bankrupt = True
+                input("PRESS ENTER TO CONTINUE...")
+    
+    def is_game_over(self) -> bool:
+        """Check if game should end"""
+        active_players = [p for p in self.game_state.players if not p.bankrupt]
+        return len(active_players) == 0
+    
+    def show_final_results(self):
+        """Show final game results"""
+        print("\n" + "="*50)
+        print("FINAL RESULTS")
+        print("="*50)
+        
+        # Sort players by assets
+        sorted_players = sorted(self.game_state.players, 
+                              key=lambda p: p.assets, reverse=True)
+        
+        for i, player in enumerate(sorted_players, 1):
+            status = " (BANKRUPT)" if player.bankrupt else ""
+            print(f"{i}. STAND {player.id}: {Display.format_currency(player.assets)}{status}")
+        
+        if not sorted_players[0].bankrupt:
+            print(f"\n🏆 STAND {sorted_players[0].id} WINS! 🏆")
+    
+    def run(self):
+        """Main game loop"""
+        try:
+            if not self.setup_game():
+                return
+            
+            print("\n...READY TO BEGIN? ", end="")
+            input()
+            
+            while not self.is_game_over():
+                self.play_day()
+                
+                if self.is_game_over():
+                    break
+                    
+                # Optional: Add a way to quit mid-game
+                
+            self.show_final_results()
+            
+            play_again = InputValidator.get_yes_no("\nWOULD YOU LIKE TO PLAY AGAIN? ")
+            if play_again:
+                self.__init__()  # Reset game
+                self.run()
+                
+        except KeyboardInterrupt:
+            print("\n\nThanks for playing Lemonade Stand!")
 
-    if signsMade( CurPlayer ) = 1 then
-        SignsMadeLbl.text = "Sign Made"
-    else
-        SignsMadeLbl.text = "Signs Made"
-    end if
 
-    CostPerSignTxt.text = DFormat( kSignCost )
-    AdExpTxt.text = DFormat( signsMade( CurPlayer ) * kSignCost )
-    ProfitTxt.text = DFormat( income - expenses )
-
-    if income < expenses then
-        ProfitTxt.TextColor = &c800000
-    else
-        ProfitTxt.TextColor = &c000000
-    end if
-
-    Profitable = income > expenses
-    NewAssetsTxt.text = DFormat( Assets(CurPlayer) )
-    ShowResults
-End Sub
-
-MainWindow.ShowResults:
-    Protected Sub ShowResults()
-    DayTxt.text = "Day " + str(Day)
-    StandTxt.text = "Stand " + str(CurPlayer + 1)
-    Panel.Value = kResultsPage
-    if Profitable then
-        # Note: I'm taking a small liberty here with the original design, which
-        # played "we're in the money" whether you made money or not. That
-        # bugged me even as a kid, so I'm changing it so that it only plays if
-        # you were profitable. Also, this allows the thunderstorm music to be
-        # heard, which otherwise would get overwritten with our side-by-side
-        # approach to the UI.
-        Player.PlaySong 4, 125, "64,2 67,3 64,1 65,2 67,4"
-    end if
-End Sub
-
-MainWindow.DFormat:
-    Protected Function DFormat(value As Double) As String
-    # Format the given value as dollars and cents.
-    if value < 0.00 then
-        return "$-" + Format( value, "0.00" )
-    else
-        return "$" + Format( value, "0.00" )
-    end if
-    End Function
-
-MainWindow.MakeWeather:
-    Protected Sub MakeWeather()
-    Dim r As Double = Rnd
-    if r < 0.6 then
-        Weather = kWeatherSunny
-        elseif r < 0.8 then
-        Weather = kWeatherCloudy
-    else
-        if Day < 3 then
-            Weather = kWeatherSunny else Weather = kWeatherHot
-        end if
-        ChanceOfRain = 0
-        if Weather = kWeatherCloudy then
-            ChanceOfRain = 30 + Floor( Rnd * 5 ) * 10
-            WeatherFactor = 1.0 - ChanceOfRain / 100
-            Player.PlaySong 97, 175, "64,3 64,2 64,1 65,2 64,1 62,2 60,1 64,5"
-        elseif Weather = kWeatherHot then
-            WeatherFactor = 2.0
-            Player.PlaySong 20, 175, "69,2 67,1 69,5 67,2 65,1 67,2 69,2 65,3 62,3 57,5"
-        else
-            WeatherFactor = 1.0
-            Player.PlaySong 76, 250, "72,3 74,1 67,1 72,1 76,1 67,1 72,5"
-        end if
-        UpdateWeatherReport
-End Sub
-
-MainWindow.UpdateWeatherReport:
-    Protected Sub UpdateWeatherReport()
-    Dim report As String
-    select case Weather
-        case kWeatherSunny
-            report = "Sunny"
-            WeatherCanv.Backdrop = SunnyPic
-        case kWeatherCloudy
-            report = "Cloudy" + EndOfLine _
-            + "There is a " + str(ChanceOfRain) + "% chance of light rain, " _
-            + "and the weather is cooler today."
-            WeatherCanv.Backdrop = CloudyPic
-        case kWeatherHot
-            report = "Hot and Dry" + EndOfLine _
-            + "A heat wave is predicted for today!"
-            WeatherCanv.Backdrop = HotAndDryPic
-        case kWeatherStorm
-            report = "Thunderstorms!" + EndOfLine _
-            + "A severe thunderstorm hit Lemonsville earlier today, " _
-            + "just as the lemonade stands were being set up. Unfortunately, " _
-            + "everything was ruined!"
-            WeatherCanv.Backdrop = StormPic
-        end select
-    WeatherTxt.text = report
-End Sub
-
-MainWindow.DoRandomEvents:
-    Protected Function DoRandomEvents() As String
-        Dim specialDesc As String
-        StreetCrewThirsty = false
-        StormBrewing = false
-        if Weather = kWeatherCloudy then
-            if Rnd < 0.25 then
-                # thunderstorm!
-                StormBrewing = true
-            end if
-        elseif Weather = kWeatherHot then
-        # heat wave (see original source line 2410)...
-        # already handled in MakeWeather
-            else
-                if Rnd >= 0.25 then return "" # no special event today
-            # street department is working (original source line 2210)
-            specialDesc = "The street department is working today. " _
-            + "There will be no traffic on your street."
-            if Rnd < 0.5 then
-                StreetCrewThirsty = true
-            else
-                WeatherFactor = 0.1
-            end if
-        end if
-        return specialDesc
-    End Function
-
-MainWindow.Validate:
-    Protected Sub Validate()
-        # Make sure the user's inputs are reasonable.
-        Dim valid As Boolean = true
-        Dim glasses, signs, price As Integer
-        glasses = CDbl( InpGlassFld.text )
-        if glasses < 0 or glasses > 1000 then valid = false
-            signs = CDbl( InpSignFld.text )
-        if signs < 0 or signs > 50 then valid = false
-            price = CDbl( InpPriceFld.text )
-        if price < 0 or price > 100 then valid = false
-        if glasses * CostPerGlass / 100 + signs * kSignCost > Assets(CurPlayer) then valid = false
-
-        DecisionOKButn.Enabled = valid
-    End Sub
-
-MainWindow.PlayThunderClap:
-    Protected Sub PlayThunderClap()
-        Dim NotePlayer1 as New NotePlayer
-        NotePlayer1.Instrument = 118
-        NotePlayer1.PlayNote(20,60)
-        NotePlayer1.Instrument = 123
-        NotePlayer1.PlayNote(21,120)
-        NotePlayer1.Instrument = 122
-        NotePlayer1.PlayNote(22,100)
-    End Sub
-
-MainWindow.SetQtyPlayers:
-    Sub SetQtyPlayers(newQtyPlayers As Integer)
-        InitGame newQtyPlayers
-    End Sub
-
-MainWindow.ShowDecisionPage:
-    Protected Sub ShowDecisionPage()
-        DecisionTitleTxt.text = "Decisions for Lemonade Stand " + str(CurPlayer+1)
-        Dim explanation As String
-        if Day < 3 then
-            CostPerGlass = 2
-            elseif Day < 7 then
-            CostPerGlass = 4
-        if Day = 3 then explanation = "(Your mother quit giving you free sugar.)"
-        else
-        if Day = 7 then explanation = "(The price of lemonade mix just went up.)"
-            CostPerGlass = 5
-        end if
-        CostTxt.text = "$.0" + str(CostPerGlass)
-        CostExpTxt.text = explanation
-        AssetsTxt.text = "$" + Format( Assets(CurPlayer), "-0.00")
-
-        InpGlassLabel.text = "How many glasses of lemonade (" _
-        + Format( CostPerGlass, "0" ) + " cents each) do you wish to make?"
-
-        InpSignLabel.text = "How many advertising signs (" _
-        + Format( kSignCost * 100, "0" ) + " cents each) do you want to make?"
-
-        InpGlassFld.text = CStr( GlassesMade( CurPlayer ) )
-        InpSignFld.text = CStr( SignsMade( CurPlayer ) )
-        InpPriceFld.text = CStr( PricePerGlass( CurPlayer ) )
-        Validate
-        Panel.Value = kNewDayPage
-        InpGlassFld.SetFocus
-        InpGlassFld.SelStart = 0
-        InpGlassFld.SelLength = 99999
-        End Sub
-
-MainWindow.CostPerGlass:
-    CostPerGlass As Integer
-    Cost of lemonade per glass, in cents.
-
-MainWindow.Day:
-    Day As Integer
-    Which day of the game we're on.
-
-MainWindow Control WeatherCanv:
-    Sub Paint(g As Graphics) Handles Event
-        g.DrawRect 0, 0, me.width, me.height
-    End Sub
-
-    MainWindow Control DecisionOKButn:
-    Sub Action() Handles Event
-        GlassesMade( CurPlayer ) = CDbl( InpGlassFld.text )
-        SignsMade( CurPlayer ) = CDbl( InpSignFld.text )
-        PricePerGlass( CurPlayer ) = CDbl( InpPriceFld.text )
-        CurPlayer = CurPlayer + 1
-
-        if CurPlayer >= QtyPlayers then
-            CurPlayer = 0
-            CalculateResults
-            ShowResults
-        else
-            ShowDecisionPage
-        end if
-    End Sub
-
-    MainWindow Control InpGlassFld:
-    Sub TextChange() Handles Event
-        Validate
-        End Sub
-
-    MainWindow Control InpSignFld:
-    Sub TextChange() Handles Event
-        Validate
-    End Sub
-
-    MainWindow Control InpPriceFld:
-    Sub TextChange() Handles Event
-        Validate
-    End Sub
-
-    MainWindow Control ResultsOKButn:
-    Sub Action() Handles Event
-        CurPlayer = CurPlayer + 1
-        if CurPlayer >= QtyPlayers then
-            CurPlayer = 0
-            StartNewDay
-        else
-            CalculateResults
-        end if
-    End Sub
-End Class
+if __name__ == "__main__":
+    game = LemonadeStandGame()
+    game.run()
