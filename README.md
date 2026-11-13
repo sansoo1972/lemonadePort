@@ -1,7 +1,48 @@
-# Lemonade Stand
+# Lemonade Stand — lemonadePort
 
 A Python text-mode port of `lemonade_stand.basic`, the bundled February 1979
 Apple adaptation by Charlie Kellner of Bob Jamison's MECC game.
+
+This project began on **September 6, 2019**, with the goal of converting
+Lemonade to Python. On **November 12, 2026**, just over seven years later,
+the working terminal recreation was committed with its display, sound, and
+regression tests. The repository keeps the early conversion attempts alongside
+the current implementation so the project's development remains visible.
+
+## Current status — November 12, 2026
+
+The current entry point is `lemonade_stand.py`. The latest implementation brings
+together the BASIC-based game rules, CRT-style terminal display, title and weather
+audio, keyboard controls, and audio cleanup. Earlier ports remain available for
+historical comparison.
+
+The latest documentation update records the September 6, 2019 start date,
+explains the current features and gameplay, maps the repository files, and
+clarifies Space/Return controls. See [CHANGELOG.md](CHANGELOG.md) for the detailed
+history from the first conversion through the current working version and these
+documentation changes.
+
+### What the current version delivers
+
+- A playable Python game for 1–30 stands, with daily production, advertising,
+  pricing, weather, expenses, sales, and financial reports.
+- Rules checked against the bundled 1979 Applesoft listing, including its
+  unusual random-event, bankruptcy, and replay behavior.
+- A centered green-screen terminal display, animated title, weather scenes,
+  and synthesized music and sound effects based on the BASIC data.
+- Plain-text and muted modes, repeatable Python random sequences, and the
+  original manual resume process using a day number and player assets.
+- Automated checks for game rules, terminal behavior, audio generation, and
+  audio-process cleanup, using only Python's standard library.
+
+## A typical day
+
+Read the weather report and production cost, then choose how many glasses to
+make, how many advertising signs to buy, and the price per glass in cents for
+each stand. Keep production and advertising within your available cash. After
+you confirm the decisions, the game applies demand and events and shows each
+stand's sales, expenses, profit, and remaining assets. Continue to the next day
+or end the session at the continuation prompt.
 
 ## Play
 
@@ -14,7 +55,7 @@ python3 lemonade_stand.py
 The game opens in a centered 4:3 monitor with a subtle, near-black bezel and
 green 40-column text. The full LEMONADE STAND title stays visible as animated
 drops fall beneath it, accompanied by slower music followed by evenly timed water drips
-(55% of the previous tempo, preserving pitch). The lettering and tune data come from the
+(played at a 55% tempo scale while preserving pitch). The lettering and tune data come from the
 BASIC listing. Weather scenes, weather tunes, and financial-report sounds are
 included. The screen recenters when you resize the terminal; 80 × 30 or larger
 provides comfortable margins around the original 40 × 24 display. The outer
@@ -90,7 +131,8 @@ art. Animated drops replace the Apple-specific opening screen-memory animation. 
 Audio pitch/timing approximate the 6502 delay routine; the Apple font,
 full-color graphics, thunder flashes, and analog speaker are not emulated exactly.
 The centered screen preserves a 40-column layout, adapting to smaller terminals.
-Input and replay require Return; lowercase yes/no answers are also accepted.
+Decision input and replay answers require Return; continuation prompts also
+accept Space in CRT mode. Lowercase yes/no answers are accepted.
 ROM exit calls are replaced by normal Python cleanup, restoring the terminal.
 
 Python uses a different PRNG and floating-point format from Applesoft. Event
@@ -122,3 +164,39 @@ The previous main implementation is preserved byte-for-byte as
 
 A static title preview is saved in `previews/title-screen.png`; the slowed
 opening melody and water drops can be played from `previews/title-sound.wav`.
+
+## Repository guide
+
+| File or directory | Purpose |
+| --- | --- |
+| `lemonade_stand.py` | Current game entry point, rules, accounting, input, and command-line options. |
+| `lemonade_crt.py` | Terminal layout, title animation, weather art, and sound synthesis/playback control. |
+| `lemonade_audio.py` | Helper that manages audio-player lifetime on macOS/Linux. |
+| `lemonade_stand.basic` | Bundled 1979 Applesoft listing used as the current fidelity reference. |
+| `tests/` | Automated rule, display, and audio regression tests. |
+| `previews/` | Saved title-screen image and opening audio preview. |
+| `lemonade_stand.py.bak` | Previous main implementation, preserved before the working recreation. |
+| `lemonade.basic` | Earlier imported BASIC-family source, retained from the 2019 work; distinct from the Applesoft reference above. |
+| `lemonande_port.py`, `lemonade_stand_basic.py` | Earlier conversion work retained for project history. |
+| `lemonade_chatGPT.py`, `lemon_chatGPT_full.py`, `# LEMONADE STAND - PYTHON VERSION.py` | Historical conversion experiments. |
+| `test_lemonade.py` | Older interactive prototype; use `tests/` for automated verification. |
+| `Lemonade Stand.drawio`, `Untitled Diagram.drawio` | Development flowcharts editable with diagrams.net/draw.io. |
+| `Inkfree.ttf` | Font asset retained from earlier development. |
+| `README.md` | Current setup, gameplay, architecture, and fidelity notes. |
+| `CHANGELOG.md` | Dated implementation milestones and documentation changes. |
+| `LICENSE` | GNU General Public License, version 3. |
+
+For new changes, start with `lemonade_stand.py` and its supporting modules.
+Keep the bundled reference listing and historical experiments available for
+comparison. When changing a rule, identify the relevant BASIC line and run the
+regression suite described above.
+
+## Credits and license
+
+Original game: **Bob Jamison / Minnesota Educational Computing Consortium
+(MECC)**. Apple adaptation: **Charlie Kellner, February 1979**, as credited in
+the bundled listing. This Python port and its development history are maintained
+in **lemonadePort** by **Richard Perez**.
+
+The repository includes the [GNU GPL v3 license](LICENSE). Original-program
+credits are retained in the source and documentation.
